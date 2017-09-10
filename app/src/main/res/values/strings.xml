@@ -1,0 +1,23 @@
+<resources>
+    <string name="app_name">TiddlyDroid</string>
+
+    <string name="navigation_drawer_open">Open navigation drawer</string>
+    <string name="navigation_drawer_close">Close navigation drawer</string>
+
+    <string name="action_settings">Settings</string>
+    <string name="title_activity_settings">Settings</string>
+
+    <string name="empty_state_text">No wiki file</string>
+
+    <!-- Strings related to Navigation -->
+    <string name="nav_item_add_wiki">Add wiki</string>
+    <string name="nav_item_remove_wiki">Remove active wiki</string>
+
+    <!-- Strings related to Settings -->
+    <string name="pref_key_tiddlywiki_file" translatable="false">tiddlywiki_file</string>
+    <string name="pref_key_active_wiki" translatable="false">active_wiki</string>
+    <string name="pref_key_wiki_descriptors" translatable="false">wiki_descriptors</string>
+    <string name="pref_title_tiddlywiki_file">Select TiddlyWiki</string>
+    <string name="pref_summary_tiddlywiki_file_default">No TiddlyWiki selected</string>
+
+</resources>
