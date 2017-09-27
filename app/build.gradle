@@ -12,7 +12,7 @@ android {
         minSdkVersion 21
         targetSdkVersion 26
         versionCode 1
-        versionName "0.1"
+        versionName "0.1.0-dev"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }
@@ -35,7 +35,7 @@ android {
             dimension "api"
             minSdkVersion 16
             versionCode 10000 + android.defaultConfig.versionCode
-            versionNameSuffix "-legacy"
+            versionNameSuffix "+legacy"
         }
     }
 }
