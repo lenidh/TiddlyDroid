@@ -15,7 +15,7 @@ class App @Deprecated("Instantiated by Android.", level = DeprecationLevel.HIDDE
     }
 
     companion object {
-        private lateinit var instance: App private set
+        private lateinit var instance: App
 
         /**
          * Context of the single, global Application object of the current process.

@@ -1,9 +1,31 @@
-*.iml
+
+## Grandle
 .gradle
-/local.properties
-/.idea/workspace.xml
-/.idea/libraries
-.DS_Store
 /build
+
+## Apple macOS folder attributes
+.DS_Store
+
+## Android Studio / IntelliJ project files #####################################
+*.iml
+
+# User-specific stuff
+local.properties
+.idea/**/workspace.xml
+.idea/**/tasks.xml
+.idea/**/usage.statistics.xml
+.idea/**/dictionaries
+.idea/**/shelf
+
+# Derived from Gradle
+.idea/gradle.xml
+.idea/jarRepositories.xml
+.idea/libraries
+.idea/modules
+.idea/modules.xml
+
+# Cache files
+.idea/caches
+
+# Heap dumps and other captures files of Android Studio.
 /captures
-.externalNativeBuild

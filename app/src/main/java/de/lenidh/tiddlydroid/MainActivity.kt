@@ -10,18 +10,20 @@ import android.os.Bundle
 import android.preference.PreferenceManager
 import android.support.design.widget.NavigationView
 import android.support.v4.view.GravityCompat
+import android.support.v4.widget.DrawerLayout
 import android.support.v7.app.ActionBarDrawerToggle
 import android.support.v7.app.AppCompatActivity
+import android.support.v7.widget.Toolbar
 import android.util.JsonReader
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.webkit.*
-import kotlinx.android.synthetic.main.activity_main.*
-import kotlinx.android.synthetic.main.app_bar_main.*
-import kotlinx.android.synthetic.main.content_main.*
-import kotlinx.android.synthetic.main.nav_header_main.*
+import android.widget.ProgressBar
+import android.widget.TextView
+import de.lenidh.tiddlydroid.databinding.ActivityMainBinding
+import de.lenidh.tiddlydroid.databinding.NavHeaderMainBinding
 import java.io.FileOutputStream
 import java.io.StringReader
 import kotlin.collections.HashMap
@@ -34,14 +36,29 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     private lateinit var descriptors: WikiDescriptors
     private lateinit var descriptorMenuItems: MutableMap<WikiDescriptor, MenuItem>
 
+    private lateinit var binding: ActivityMainBinding
+    private val toolbar: Toolbar get() = binding.appBarMain.toolbar
+    private val drawerLayout: DrawerLayout get() = binding.drawerLayout
+    private val navView: NavigationView get() = binding.navView
+    private val webView: WebView get() = binding.appBarMain.contentMain.webView
+    private val progressBar: ProgressBar get() = binding.appBarMain.contentMain.progressBar
+
+    private lateinit var navHeaderMainBinding: NavHeaderMainBinding
+    private val wikiTitleView: TextView get() = navHeaderMainBinding.wikiTitleView
+    private val wikiSubtitleView: TextView get() = navHeaderMainBinding.wikiSubtitleView
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        navHeaderMainBinding = NavHeaderMainBinding.bind(binding.navView.getHeaderView(0))
+
+        setContentView(binding.root)
         setSupportActionBar(toolbar)
 
-        val toggle = ActionBarDrawerToggle(this, drawer_layout, toolbar,
+        val toggle = ActionBarDrawerToggle(this, drawerLayout, toolbar,
                 R.string.navigation_drawer_open, R.string.navigation_drawer_close)
-        drawer_layout.addDrawerListener(toggle)
+        drawerLayout.addDrawerListener(toggle)
         toggle.syncState()
 
         navView.setNavigationItemSelectedListener(this)
@@ -69,8 +86,8 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     }
 
     override fun onBackPressed() {
-        if (drawer_layout.isDrawerOpen(GravityCompat.START)) {
-            drawer_layout.closeDrawer(GravityCompat.START)
+        if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
+            drawerLayout.closeDrawer(GravityCompat.START)
         } else {
             super.onBackPressed()
         }
@@ -83,7 +100,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             R.id.nav_remove_wiki -> removeCurrentWiki()
         }
 
-        drawer_layout.closeDrawer(GravityCompat.START)
+        drawerLayout.closeDrawer(GravityCompat.START)
         return true
     }
 
