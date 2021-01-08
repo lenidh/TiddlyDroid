@@ -3,6 +3,10 @@
     xmlns:tools="http://schemas.android.com/tools"
     tools:showIn="navigation_view">
 
+    <!-- Group properties are stored in the item objects when using the support
+         library (may also affect platform implementation, not checked).
+         Therefore properties must be reassigned after the dynamic menu items
+         are created. -->
     <group
         android:checkableBehavior="single"
         android:orderInCategory="1"

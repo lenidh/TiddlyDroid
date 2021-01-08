@@ -30,9 +30,7 @@ import kotlin.collections.HashMap
 
 class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelectedListener {
 
-    private val TAG = this.javaClass.simpleName
-
-    private var activeUri: Uri = Uri.EMPTY
+    private var currentWiki: WikiDescriptor? = null
     private lateinit var descriptors: WikiDescriptors
     private lateinit var descriptorMenuItems: MutableMap<WikiDescriptor, MenuItem>
 
@@ -46,6 +44,9 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     private lateinit var navHeaderMainBinding: NavHeaderMainBinding
     private val wikiTitleView: TextView get() = navHeaderMainBinding.wikiTitleView
     private val wikiSubtitleView: TextView get() = navHeaderMainBinding.wikiSubtitleView
+
+    private var nextItemId: Int = 0
+        get() = field++
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -63,14 +64,9 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
         navView.setNavigationItemSelectedListener(this)
 
-        loadPreferences()
-
-        // Generate menu items for each known TiddlyWiki (metadata stored in preferences).
-        descriptorMenuItems = HashMap()
-        descriptors.forEach { addMenuItemFor(it) }
-
         initWikiView()
-        updateWikiView()
+
+        loadPreferences()
     }
 
     override fun onPause() {
@@ -79,9 +75,12 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        if(requestCode == ACTIVITY_RESULT_CHOOSE_WIKI && resultCode == Activity.RESULT_OK
+        if (requestCode == ACTIVITY_RESULT_CHOOSE_WIKI && resultCode == Activity.RESULT_OK
                 && data != null) {
-            addWiki(WikiDescriptor(data.data))
+            val uri = data.data
+            if (uri != null) {
+                addWiki(WikiDescriptor(uri))
+            }
         }
     }
 
@@ -107,17 +106,21 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     private fun loadPreferences() {
         val sharedPrefs = PreferenceManager.getDefaultSharedPreferences(this)
 
-        activeUri = Uri.parse(sharedPrefs.getString(R.string.pref_key_active_wiki))
-
         val set = sharedPrefs.getStringSet(R.string.pref_key_wiki_descriptors)
         descriptors = WikiDescriptors.fromStringSet(set)
+        // Generate menu items for each known TiddlyWiki (metadata stored in preferences).
+        descriptorMenuItems = HashMap()
+        descriptors.forEach { addMenuItemFor(it) }
+
+        val active = descriptors[Uri.parse(sharedPrefs.getString(R.string.pref_key_active_wiki))]
+        active?.let { selectWiki(it) }
     }
 
     private fun savePreferences() {
         val sharedPrefs = PreferenceManager.getDefaultSharedPreferences(this)
 
         val editor = sharedPrefs.edit()
-        editor.putString(R.string.pref_key_active_wiki, activeUri.toString())
+        editor.putString(R.string.pref_key_active_wiki, currentWiki?.uri?.toString().orEmpty())
         editor.putStringSet(R.string.pref_key_wiki_descriptors, descriptors.toStringSet())
         editor.apply()
     }
@@ -131,8 +134,8 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     }
 
     private fun updateWikiView() {
-        webView.visibility = if(activeUri == Uri.EMPTY) View.INVISIBLE else View.VISIBLE
-        webView.loadUrl(activeUri.toString())
+        webView.visibility = if (currentWiki == null) View.INVISIBLE else View.VISIBLE
+        webView.loadUrl(currentWiki?.uri?.toString().orEmpty())
     }
 
     private fun startWikiChooser() {
@@ -141,13 +144,12 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     }
 
     private fun createWikiChooserIntent(): Intent {
-        val intent: Intent
-        if(Build.VERSION.SDK_INT > Build.VERSION_CODES.KITKAT) {
-            intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+        val intent: Intent = if (Build.VERSION.SDK_INT > Build.VERSION_CODES.KITKAT) {
+            Intent(Intent.ACTION_OPEN_DOCUMENT)
         } else {
             // LEGACY: ACTION_OPEN_DOCUMENT is not available before KitKat and seems to be broken on
             //         KitKat.
-            intent = Intent(Intent.ACTION_GET_CONTENT)
+            Intent(Intent.ACTION_GET_CONTENT)
         }
         intent.addCategory(Intent.CATEGORY_OPENABLE)
         intent.type = "text/html"
@@ -155,17 +157,20 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     }
 
     private fun selectWiki(descriptor: WikiDescriptor) {
-        if(activeUri != descriptor.uri) {
-            activeUri = descriptor.uri
+        if (currentWiki != descriptor) {
+            currentWiki = descriptor
             updateWikiView()
             wikiTitleView.text = descriptor.title
             wikiSubtitleView.text = descriptor.subtitle
+
+            val menuItem = descriptorMenuItems[descriptor]!!
+            menuItem.isChecked = true
         }
     }
 
     private fun deselectWiki() {
-        if(activeUri != Uri.EMPTY) {
-            activeUri = Uri.EMPTY
+        if (currentWiki != null) {
+            currentWiki = null
             updateWikiView()
             wikiTitleView.text = ""
             wikiSubtitleView.text = ""
@@ -174,12 +179,12 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
     private fun addWiki(descriptor: WikiDescriptor) {
         // proceed only if the specified wiki is not already registered
-        if(descriptors[descriptor.uri] != null) {
+        if (descriptors[descriptor.uri] != null) {
             // TODO: Display message
             return
         }
 
-        if(Build.VERSION.SDK_INT > Build.VERSION_CODES.KITKAT) { // LEGACY: Must not be executed
+        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.KITKAT) { // LEGACY: Must not be executed
             // persist file permissions across device boots
             val mode = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
             contentResolver.takePersistableUriPermission(descriptor.uri, mode)
@@ -195,7 +200,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
     private fun removeWiki(descriptor: WikiDescriptor) {
         // if the specified wiki is the currently selected one, deselect it
-        if(descriptor.uri == activeUri) {
+        if (descriptor == currentWiki) {
             deselectWiki()
         }
 
@@ -203,7 +208,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         removeMenuItemFor(descriptor)
         descriptors.remove(descriptor.uri)
 
-        if(Build.VERSION.SDK_INT > Build.VERSION_CODES.KITKAT) { // LEGACY: Must not be executed
+        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.KITKAT) { // LEGACY: Must not be executed
             // release file permissions
             val mode = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
             contentResolver.releasePersistableUriPermission(descriptor.uri, mode)
@@ -211,12 +216,14 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     }
 
     private fun removeCurrentWiki() {
-        val descriptor = descriptors[activeUri]
-        if(descriptor != null) removeWiki(descriptor)
+        val wiki = currentWiki;
+        if (wiki != null) removeWiki(wiki)
     }
 
     private fun addMenuItemFor(descriptor: WikiDescriptor) {
-        val item = navView.menu.add(R.id.nav_wiki_list, Menu.NONE, Menu.NONE, descriptor.title)
+        val item = navView.menu.add(R.id.nav_wiki_list, nextItemId, Menu.NONE, descriptor.title)
+        // New items don't inherit the checkable state => reassign
+        navView.menu.setGroupCheckable(R.id.nav_wiki_list, true, true);
         descriptorMenuItems[descriptor] = item
         item.setOnMenuItemClickListener {
             selectWiki(descriptor)
@@ -226,7 +233,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
     private fun removeMenuItemFor(descriptor: WikiDescriptor) {
         val item = descriptorMenuItems.remove(descriptor)
-        if(item != null) {
+        if (item != null) {
             navView.menu.removeItem(item.itemId)
         }
     }
@@ -248,7 +255,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     }
 
     private inner class WikiViewClient constructor(view: WebView) : WebViewClient() {
-        private val TAG = this.javaClass.simpleName
 
         private val pageNameScript: String by lazy { loadAsset("js/get-application-name.js") }
         private val saveSupportScript: String by lazy { loadAsset("js/save-support.js") }
@@ -258,7 +264,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
         override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest)
                 : WebResourceResponse? {
-            if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 Log.d(TAG, "TiddlyWiki resource request: ${request.method} ${request.url} { isForMainFrame: ${request.isForMainFrame} }")
             }
             return super.shouldInterceptRequest(view, request)
@@ -266,25 +272,25 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
         override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
             Log.d(TAG, "Started loading URI $url")
-            if(url.startsWith("data:text/html")) {
-                return;
+            if (url.startsWith("data:text/html")) {
+                return
             }
             enableProgressBar()
         }
 
         override fun onPageFinished(view: WebView, url: String) {
             Log.d(TAG, "Finished loading URI $url")
-            if(url.startsWith("data:text/html")) {
-                return;
+            if (url.startsWith("data:text/html")) {
+                return
             }
-            injectScript(pageNameScript, { pageName ->
-                if(pageName in listOf("TiddlyWiki", "\"TiddlyWiki\"", "'TiddlyWiki'")) {
+            injectScript(pageNameScript) { pageName ->
+                if (pageName in listOf("TiddlyWiki", "\"TiddlyWiki\"", "'TiddlyWiki'")) {
                     injectScript(saveSupportScript)
-                    injectScript(wikiPropertiesScript, { onWikiPropertiesAvailable(it) })
+                    injectScript(wikiPropertiesScript) { onWikiPropertiesAvailable(it) }
                 } else {
                     Log.e(TAG, "Page is not a TiddlyWiki (application-name: $pageName)")
                 }
-            })
+            }
             disableProgressBar()
         }
 
@@ -294,9 +300,8 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
             JsonReader(StringReader(properties)).use { reader ->
                 reader.beginObject()
-                while(reader.hasNext()) {
-                    val name = reader.nextName()
-                    when(name) {
+                while (reader.hasNext()) {
+                    when (reader.nextName()) {
                         "title" -> title = reader.nextString()
                         "subtitle" -> subtitle = reader.nextString()
                         else -> reader.skipValue()
@@ -308,17 +313,17 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             wikiTitleView.text = title
             wikiSubtitleView.text = subtitle
 
-            val descriptor = descriptors[activeUri]
-            if(descriptor != null) {
-                descriptor.title = title
-                descriptor.subtitle = subtitle
-                descriptorMenuItems[descriptor]?.title = title
+            val wiki = currentWiki
+            if (wiki != null) {
+                wiki.title = title
+                wiki.subtitle = subtitle
+                descriptorMenuItems[wiki]?.title = title
             }
         }
 
         override fun onReceivedError(view: WebView, request: WebResourceRequest,
                                      error: WebResourceError) {
-            if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 Log.e(TAG, "Failed to load resource: ${error.description} (URL: ${request.url}, Code: ${error.errorCode})")
             }
             disableProgressBar()
@@ -326,7 +331,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
 
         private fun injectScript(script: String) {
-            injectScript(script, {})
+            injectScript(script) {}
         }
 
         private fun injectScript(script: String, callback: (String) -> Unit) {
@@ -343,7 +348,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
         @JavascriptInterface
         fun currentPath(): String {
-            return activeUri.toString()
+            return currentWiki?.uri?.toString().orEmpty()
         }
 
         @JavascriptInterface
@@ -353,19 +358,22 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 return false
             }
 
-            contentResolver.openFileDescriptor(uri, "w").use {
-                FileOutputStream(it.fileDescriptor).bufferedWriter(Charsets.UTF_8).use {
-                    it.write(content)
+            contentResolver.openFileDescriptor(uri, "w")?.use { fd ->
+                FileOutputStream(fd.fileDescriptor).bufferedWriter(Charsets.UTF_8).use { writer ->
+                    writer.write(content)
                     Log.i(TAG, "TiddlyWiki successfully saved")
+                    return true
                 }
             }
 
-            return true
+            return false;
         }
 
         private fun requireCurrentUri(uri: Uri): Boolean {
-            val expected = activeUri
-            return if(expected == uri) { true } else {
+            val expected = currentWiki?.uri ?: Uri.EMPTY
+            return if (expected == uri) {
+                true
+            } else {
                 Log.e(TAG, "Unexpected URI (expected: $expected, actual: $uri)")
                 false
             }
@@ -373,6 +381,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     }
 
     companion object {
+        private val TAG = MainActivity::class.simpleName
         private const val ACTIVITY_RESULT_CHOOSE_WIKI: Int = 1
     }
 }
